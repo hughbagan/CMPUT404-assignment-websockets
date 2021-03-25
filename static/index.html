@@ -3,10 +3,10 @@
   <head> 
     <title>Websockets Assignment</title> 
     <meta charset="utf-8" /> 
-    <meta content='width=device-width; height=device-height; initial-scale=1.0; maximum-scale=1.0; user-scalable=0;' name='viewport' />
+    <meta content='width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' name='viewport' />
     <meta name="viewport" content="width=device-width" />
     <meta name="license" content="
-        Copyright 2013 Google, Abram Hindle
+        Copyright 2021 Google, Abram Hindle, Hugh Bagan
         
         Licensed under the Apache License, Version 2.0 (the "License");
         you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ function debug(str) {
 debug("Test");
 
 world = {};
+newCircles = {};
 
 //XXX: TODO Make this prettier!
 function drawCircle(context,entity) {
@@ -98,7 +99,16 @@ function drawNextFrame() {
 function drawFrame() {
     if (drawNext) {
         renderFrame();
+
+        // Batch send the new circles to the server socket
+        //if (socket.readyState === socket.OPEN) {
+        console.log(newCircles);
+        socket.send(JSON.stringify(newCircles));
+        //}
+
         drawNext = false;
+    } else {
+        newCircles = {}; // clear the cache that's sent to the socket
     }
 }
 
@@ -124,8 +134,13 @@ function getPosition(e) {
 function addEntity(entity, data) {
     world[entity] = data;
     drawNextFrame(); // (but should we?)
-    //XXX: Send a XHTML Request that updates the entity you just modified!
+    
+    // Store the new entity and send it to the socket on the next draw frame.
+    if (newCircles[entity] === undefined) {
+        newCircles[entity] = data;
+    }
 }
+
 var counter = 0;
 function addEntityWithoutName(data) {
     var name = "X"+(counter++)%100;
@@ -251,9 +266,12 @@ function update() {
 
 function wsSetup() {
     var url = "ws://"+host+"/subscribe";   
+    console.log(url);
     socket = new WebSocket(url);
     socket.onopen = function() {
         //XXX: TODO What are you going to do here?
+        socket.send("socket open");
+        // Get the current world and draw it
     };
     socket.onerror = function(msg) {
         debug("WebSocket Error:" + msg.data);
@@ -261,11 +279,13 @@ function wsSetup() {
     socket.onmessage = function(msg) {  
         try {
             debug("WebSocket Recv:" + msg.data);
-            //XXX: TODO What are you going to do here?            
+            //XXX: TODO What are you going to do here?
+            // Draw the received objects
+
         } catch (e) {
             alert("socket on message: " + e);
         }
-    }; 
+    };
 }
 
 wsSetup();

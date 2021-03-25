@@ -20,7 +20,8 @@ pip install -r requirements.txt
 Contributors / Licensing
 ========================
 
-Generally everything is LICENSE'D under the Apache 2 license by Abram Hindle.
+Generally everything is LICENSE'D under the Apache 2 license by Abram Hindle.  
+Modifications to `sockets.py` and `index.html` are also licensed under Apache 2 by Hugh Bagan.
 
 freetests.py is LICENSE'D under a BSD-like license:
 
@@ -59,3 +60,12 @@ Contributors
 * Mark Galloway
 * Abram Hindle
 * Cole Mackenzie
+* Hugh Bagan
+
+Sources
+=======
+
+Some code for the flask server endpoints was reused from my [Assignment 4 submission](https://github.com/hughbagan/CMPUT404-assignment-ajax/blob/master/server.py). -Hugh
+
+* https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications
+* https://github.com/heroku-python/flask-sockets

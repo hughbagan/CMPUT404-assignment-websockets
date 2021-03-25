@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-# Copyright (c) 2013-2014 Abram Hindle
+# Copyright (c) 2013-2021 Abram Hindle, Hugh Bagan
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 import flask
-from flask import Flask, request
+from flask import Flask, request, redirect, Response
 from flask_sockets import Sockets
 import gevent
 from gevent import queue
@@ -63,25 +63,38 @@ myWorld = World()
 
 def set_listener( entity, data ):
     ''' do something with the update ! '''
+    # Send here?
 
 myWorld.add_set_listener( set_listener )
-        
-@app.route('/')
-def hello():
-    '''Return something coherent here.. perhaps redirect to /static/index.html '''
-    return None
+
 
 def read_ws(ws,client):
     '''A greenlet function that reads from the websocket and updates the world'''
     # XXX: TODO IMPLEMENT ME
-    return None
+    # Send here? Use gevent?
+    pass
+
 
 @sockets.route('/subscribe')
 def subscribe_socket(ws):
     '''Fufill the websocket URL of /subscribe, every update notify the
        websocket and read updates from the websocket '''
     # XXX: TODO IMPLEMENT ME
-    return None
+    ws.send("Flask says hello!")
+    while not ws.closed:
+        message = ws.receive()
+        try:
+            new_objs = json.loads(message)
+            for entity in new_objs:
+                print(entity, new_objs[entity])
+                if myWorld.get(entity) == {}:
+                    # colour, radius might cause a problem
+                    # We're going to ignore update and just use set instead
+                    myWorld.set(entity, new_objs[entity])
+        except Exception as e:
+            print(message)
+            print(e)
+        # Send here?
 
 
 # I give this to you, this is how you get the raw body/data portion of a post in flask
@@ -96,27 +109,37 @@ def flask_post_json():
     else:
         return json.loads(request.form.keys()[0])
 
+
 @app.route("/entity/<entity>", methods=['POST','PUT'])
 def update(entity):
     '''update the entities via this interface'''
-    return None
+    data = request.get_json(force=True)
+    #print(data)
+
 
 @app.route("/world", methods=['POST','GET'])    
 def world():
     '''you should probably return the world here'''
-    return None
+    return json.dumps(myWorld.world())
+
 
 @app.route("/entity/<entity>")    
 def get_entity(entity):
     '''This is the GET version of the entity interface, return a representation of the entity'''
-    return None
+    return json.dumps(myWorld.get(entity))
 
 
 @app.route("/clear", methods=['POST','GET'])
 def clear():
     '''Clear the world out!'''
-    return None
+    myWorld.clear()
+    return json.dumps(myWorld.world()) # should be empty {}
 
+
+@app.route('/')
+def hello():
+    '''Return something coherent here.. perhaps redirect to /static/index.html '''
+    return redirect("/static/index.html")
 
 
 if __name__ == "__main__":
