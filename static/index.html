@@ -99,16 +99,7 @@ function drawNextFrame() {
 function drawFrame() {
     if (drawNext) {
         renderFrame();
-
-        // Batch send the new circles to the server socket
-        //if (socket.readyState === socket.OPEN) {
-        console.log(newCircles);
-        socket.send(JSON.stringify(newCircles));
-        //}
-
         drawNext = false;
-    } else {
-        newCircles = {}; // clear the cache that's sent to the socket
     }
 }
 
@@ -131,12 +122,13 @@ function getPosition(e) {
 	}
 }
 
-function addEntity(entity, data) {
+function addEntity(entity, data, incoming=false) {
     world[entity] = data;
     drawNextFrame(); // (but should we?)
     
-    // Store the new entity and send it to the socket on the next draw frame.
-    if (newCircles[entity] === undefined) {
+    // Store the new entity and send it to the socket (see update() )
+    if (!incoming && newCircles[entity] === undefined) {
+        // newCircles contains objects to send back to the socket
         newCircles[entity] = data;
     }
 }
@@ -258,9 +250,29 @@ mouse.mousedraggers.push(function(x,y,clicked,e) {
                           'radius':10});
 });
 
-
+var sockCount = 30;
 function update() {
     drawFrame();
+
+    // Send to socket once per second in batches
+    if (sockCount >= 30 && Object.keys(newCircles).length > 0) {
+        var toSend = {};
+        // Put the keys in a list first so I can iterate them
+        var keys = [];
+        Object.keys(newCircles).forEach(function(entity) {
+            keys.push(entity);
+        });
+        for (var i=0; i<Math.min(100, keys.length); i++) {
+            let entity = keys[i];
+            toSend[entity] = newCircles[entity];
+            delete newCircles[entity];
+        }
+        console.log(toSend);
+        socket.send(JSON.stringify(toSend));
+        sockCount = 0;
+    } else {
+        sockCount += 1;
+    }
 }
 
 
@@ -278,10 +290,20 @@ function wsSetup() {
     };
     socket.onmessage = function(msg) {  
         try {
-            debug("WebSocket Recv:" + msg.data);
+            //debug("WebSocket Recv:" + msg.data);
             //XXX: TODO What are you going to do here?
             // Draw the received objects
-
+            try {
+                var objects = JSON.parse(msg.data);
+                console.log(objects)
+            } catch (e) {
+                var objects = {}; // do nothing!
+            }
+            Object.keys(objects).forEach(function(entity) {
+                if (!world.hasOwnProperty(entity)) {
+                    addEntity(entity, objects[entity], true);
+                }
+            });
         } catch (e) {
             alert("socket on message: " + e);
         }

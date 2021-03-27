@@ -69,3 +69,7 @@ Some code for the flask server endpoints was reused from my [Assignment 4 submis
 
 * https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications
 * https://github.com/heroku-python/flask-sockets
+* https://stackoverflow.com/a/9804835
+* https://www.gevent.org/api/gevent.queue.html
+* https://sdiehl.github.io/gevent-tutorial/#core
+* ^ (I used these in reference however I was unable to derive my own solution...)

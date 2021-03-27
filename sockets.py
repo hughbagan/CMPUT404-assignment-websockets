@@ -17,7 +17,6 @@ import flask
 from flask import Flask, request, redirect, Response
 from flask_sockets import Sockets
 import gevent
-from gevent import queue
 import time
 import json
 import os
@@ -59,11 +58,15 @@ class World:
     def world(self):
         return self.space
 
-myWorld = World()        
+myWorld = World()
+clients = []
+updates = [] # contains tuples: (ws, {entities})
+tasks = gevent.queue.Queue()
 
 def set_listener( entity, data ):
     ''' do something with the update ! '''
     # Send here?
+    pass
 
 myWorld.add_set_listener( set_listener )
 
@@ -71,8 +74,40 @@ myWorld.add_set_listener( set_listener )
 def read_ws(ws,client):
     '''A greenlet function that reads from the websocket and updates the world'''
     # XXX: TODO IMPLEMENT ME
+    print("receiving")
+    while True:
+        message = ws.receive()
+        if message:
+            try:
+                new_objs = json.loads(message)
+                print(new_objs)
+                for entity in new_objs:
+                    if myWorld.get(entity) == {}:
+                        # colour, radius might cause a problem
+                        # We're going to ignore update and just use set instead
+                        myWorld.set(entity, new_objs[entity])
+                        updates.append( (ws, new_objs) )
+            except Exception as e:
+                print(message)
+                print(e)
+        gevent.sleep(0.1)
+
+
+def write_ws(ws):
+    """ Send updates to a websocket """    
     # Send here? Use gevent?
-    pass
+    while True:
+        if (len(updates) > 0):
+            i = 0
+            while (i < len(updates)):
+                if updates[i][0] != ws:
+                    # These updates came from a different ws, so the current ws needs them!
+                    print("Send updates")
+                    ws.send(json.dumps(updates[i][1]))
+                    del updates[i]
+                    i -= 1
+                i += 1
+        gevent.sleep(0.1)
 
 
 @sockets.route('/subscribe')
@@ -81,20 +116,15 @@ def subscribe_socket(ws):
        websocket and read updates from the websocket '''
     # XXX: TODO IMPLEMENT ME
     ws.send("Flask says hello!")
-    while not ws.closed:
-        message = ws.receive()
-        try:
-            new_objs = json.loads(message)
-            for entity in new_objs:
-                print(entity, new_objs[entity])
-                if myWorld.get(entity) == {}:
-                    # colour, radius might cause a problem
-                    # We're going to ignore update and just use set instead
-                    myWorld.set(entity, new_objs[entity])
-        except Exception as e:
-            print(message)
-            print(e)
-        # Send here?
+    clients.append(ws)
+    # Get the client up to speed with the current world state
+    ws.send(json.dumps(myWorld.world()))
+    #while not ws.closed:
+    # Sorry; I don't know how to use gevent :(
+    gevent.joinall([
+        gevent.spawn(read_ws(ws, ws)),
+        gevent.spawn(write_ws(ws))
+    ])    
 
 
 # I give this to you, this is how you get the raw body/data portion of a post in flask
@@ -114,7 +144,26 @@ def flask_post_json():
 def update(entity):
     '''update the entities via this interface'''
     data = request.get_json(force=True)
-    #print(data)
+    create_mode = myWorld.get(entity) == dict()
+    if request.method=='POST':
+        for key in data:
+            try:
+                myWorld.update(entity, key, data[key])
+            except Exception as e:
+                return Response(str(e), status=500)
+    elif request.method=='PUT':
+        try:
+            myWorld.set(entity, data)
+        except Exception as e:
+            return Response(str(e), status=500)
+        return json.dumps(myWorld.get(entity)) # "returns the obj that was PUT"
+    else:
+        print(request.method)
+        return Response(status=405) # Method Not Allowed
+    if create_mode:
+        return Response(status=201) # Created
+    else:
+        return Response(status=204) # No Content
 
 
 @app.route("/world", methods=['POST','GET'])    
