@@ -3,10 +3,10 @@
   <head> 
     <title>Websockets Assignment</title> 
     <meta charset="utf-8" /> 
-    <meta content='width=device-width; height=device-height; initial-scale=1.0; maximum-scale=1.0; user-scalable=0;' name='viewport' />
+    <meta content='width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' name='viewport' />
     <meta name="viewport" content="width=device-width" />
     <meta name="license" content="
-        Copyright 2013 Google, Abram Hindle
+        Copyright 2021 Google, Abram Hindle, Hugh Bagan
         
         Licensed under the Apache License, Version 2.0 (the "License");
         you may not use this file except in compliance with the License.
@@ -40,9 +40,10 @@ function debug(str) {
     var debugDiv = document.getElementById('debug');
     debugDiv.innerHTML = "" + str;
 }
-debug("Test");
+debug("Welcome to the drawing canvas.");
 
 world = {};
+newCircles = {};
 
 //XXX: TODO Make this prettier!
 function drawCircle(context,entity) {
@@ -64,16 +65,18 @@ function prepEntity(entity) {
         entity["colour"] = "#FF0000";
     }
     if (!entity["radius"]) {
-        entity["radius"] = 50;
+        entity["radius"] = 5;
     }
     return entity;
 }
 
 function clearFrame() {
     with(context) {
-	moveTo(0,0);
-	fillStyle = "#000";
-	fillRect(0,0,W,H);
+        moveTo(0,0);
+        fillStyle = "#fff"; //"#000";
+        fillRect(0,0,W,H);
+        strokeStyle = "#000";
+        strokeRect(0,0,W,H);
     }
 
 }
@@ -121,11 +124,17 @@ function getPosition(e) {
 	}
 }
 
-function addEntity(entity, data) {
+function addEntity(entity, data, incoming=false) {
     world[entity] = data;
     drawNextFrame(); // (but should we?)
-    //XXX: Send a XHTML Request that updates the entity you just modified!
+    
+    // Store the new entity and send it to the socket (see update() )
+    if (!incoming && newCircles[entity] === undefined) {
+        // newCircles contains objects to send back to the socket
+        newCircles[entity] = data;
+    }
 }
+
 var counter = 0;
 function addEntityWithoutName(data) {
     var name = "X"+(counter++)%100;
@@ -240,32 +249,67 @@ mouse.mouseuppers.push(function(x,y,clicked,e) {
 
 mouse.mousedraggers.push(function(x,y,clicked,e) {
     addEntityWithoutName({'x':x,'y':y,'colour':'green',
-                          'radius':10});
+                          'radius':2});
 });
 
-
+var sockCount = 30;
 function update() {
     drawFrame();
+
+    // Send to socket once per second in batches
+    if (sockCount >= 30 && Object.keys(newCircles).length > 0) {
+        var toSend = {};
+        // Put the keys in a list first so I can iterate them
+        var keys = [];
+        Object.keys(newCircles).forEach(function(entity) {
+            keys.push(entity);
+        });
+        for (var i=0; i<Math.min(100, keys.length); i++) {
+            let entity = keys[i];
+            toSend[entity] = newCircles[entity];
+            delete newCircles[entity];
+        }
+        console.log(toSend);
+        socket.send(JSON.stringify(toSend));
+        sockCount = 0;
+    } else {
+        sockCount += 1;
+    }
 }
 
 
 function wsSetup() {
     var url = "ws://"+host+"/subscribe";   
+    console.log(url);
     socket = new WebSocket(url);
     socket.onopen = function() {
         //XXX: TODO What are you going to do here?
+        socket.send("socket open");
+        // Get the current world and draw it
     };
     socket.onerror = function(msg) {
         debug("WebSocket Error:" + msg.data);
     };
     socket.onmessage = function(msg) {  
         try {
-            debug("WebSocket Recv:" + msg.data);
-            //XXX: TODO What are you going to do here?            
+            //debug("WebSocket Recv:" + msg.data);
+            //XXX: TODO What are you going to do here?
+            // Draw the received objects
+            try {
+                var objects = JSON.parse(msg.data);
+                console.log(objects)
+            } catch (e) {
+                var objects = {}; // do nothing!
+            }
+            Object.keys(objects).forEach(function(entity) {
+                if (!world.hasOwnProperty(entity)) {
+                    addEntity(entity, objects[entity], true);
+                }
+            });
         } catch (e) {
             alert("socket on message: " + e);
         }
-    }; 
+    };
 }
 
 wsSetup();
