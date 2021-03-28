@@ -65,11 +65,14 @@ Contributors
 Sources
 =======
 
-Some code for the flask server endpoints was reused from my [Assignment 4 submission](https://github.com/hughbagan/CMPUT404-assignment-ajax/blob/master/server.py). -Hugh
+Some code for the flask server endpoints was reused from my [Assignment 4 submission](https://github.com/hughbagan/CMPUT404-assignment-ajax/blob/master/server.py).
 
+The majority of `sockets.read_ws()` and `sockets.subscribe_socket()` are from Abram Hindle's [chat websocket example](https://github.com/abramhindle/WebSocketsExamples/blob/master/chat.py). The `Client` class is taken wholesale from the same program.
+
+Other sources:  
 * https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications
 * https://github.com/heroku-python/flask-sockets
 * https://stackoverflow.com/a/9804835
 * https://www.gevent.org/api/gevent.queue.html
-* https://sdiehl.github.io/gevent-tutorial/#core
-* ^ (I used these in reference however I was unable to derive my own solution...)
+* https://sdiehl.github.io/gevent-tutorial/
+* ^ (I used these in reference however I was unable to derive my own solution; no code is used.)

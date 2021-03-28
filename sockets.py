@@ -25,106 +25,113 @@ app = Flask(__name__)
 sockets = Sockets(app)
 app.debug = True
 
+
 class World:
     def __init__(self):
         self.clear()
         # we've got listeners now!
         self.listeners = list()
-        
     def add_set_listener(self, listener):
         self.listeners.append( listener )
-
     def update(self, entity, key, value):
         entry = self.space.get(entity,dict())
         entry[key] = value
         self.space[entity] = entry
         self.update_listeners( entity )
-
     def set(self, entity, data):
         self.space[entity] = data
         self.update_listeners( entity )
-
     def update_listeners(self, entity):
         '''update the set listeners'''
         for listener in self.listeners:
             listener(entity, self.get(entity))
-
     def clear(self):
         self.space = dict()
-
     def get(self, entity):
         return self.space.get(entity,dict())
-    
     def world(self):
         return self.space
 
-myWorld = World()
-clients = []
-updates = [] # contains tuples: (ws, {entities})
-tasks = gevent.queue.Queue()
 
 def set_listener( entity, data ):
     ''' do something with the update ! '''
     # Send here?
     pass
 
+
+myWorld = World()
 myWorld.add_set_listener( set_listener )
+clients = list()
+
+
+class Client:
+    """ Credit: Abram Hindle WebSocketsExamples Apache 2.0 """
+    def __init__(self):
+        self.queue = gevent.queue.Queue()
+    def put(self, v):
+        self.queue.put_nowait(v)
+    def get(self):
+        return self.queue.get()
 
 
 def read_ws(ws,client):
-    '''A greenlet function that reads from the websocket and updates the world'''
+    '''
+    A greenlet function that reads from the websocket and updates the world
+    Credit: Abram Hindle WebSocketsExamples Apache 2.0
+    '''
     # XXX: TODO IMPLEMENT ME
     print("receiving")
-    while True:
-        message = ws.receive()
-        if message:
-            try:
-                new_objs = json.loads(message)
-                print(new_objs)
+    try:
+        while True:
+            message = ws.receive()
+            print("WS RECV: %s" % message)
+            if message:
+                # What if message isn't JSON?
+                try:
+                    new_objs = json.loads(message) # JSON string to JSON/dict
+                except json.JSONDecodeError:
+                    print("not a JSON, ignored")
+                    continue
                 for entity in new_objs:
                     if myWorld.get(entity) == {}:
                         # colour, radius might cause a problem
+                        #new_objs[entity]["colour"] = "black" # for aesthetic reasons!
                         # We're going to ignore update and just use set instead
                         myWorld.set(entity, new_objs[entity])
-                        updates.append( (ws, new_objs) )
-            except Exception as e:
-                print(message)
-                print(e)
-        gevent.sleep(0.1)
-
-
-def write_ws(ws):
-    """ Send updates to a websocket """    
-    # Send here? Use gevent?
-    while True:
-        if (len(updates) > 0):
-            i = 0
-            while (i < len(updates)):
-                if updates[i][0] != ws:
-                    # These updates came from a different ws, so the current ws needs them!
-                    print("Send updates")
-                    ws.send(json.dumps(updates[i][1]))
-                    del updates[i]
-                    i -= 1
-                i += 1
-        gevent.sleep(0.1)
+                # Send to all clients
+                for c in clients:
+                    c.put(json.dumps(new_objs))
+            else:
+                break
+    except Exception as e:
+        print(e)
+        print("Done")
 
 
 @sockets.route('/subscribe')
 def subscribe_socket(ws):
-    '''Fufill the websocket URL of /subscribe, every update notify the
-       websocket and read updates from the websocket '''
+    '''
+    Fufill the websocket URL of /subscribe, every update notify the
+    websocket and read updates from the websocket 
+    Credit: Abram Hindle WebSocketsExamples Apache 2.0
+    '''
     # XXX: TODO IMPLEMENT ME
-    ws.send("Flask says hello!")
-    clients.append(ws)
-    # Get the client up to speed with the current world state
-    ws.send(json.dumps(myWorld.world()))
-    #while not ws.closed:
-    # Sorry; I don't know how to use gevent :(
-    gevent.joinall([
-        gevent.spawn(read_ws(ws, ws)),
-        gevent.spawn(write_ws(ws))
-    ])    
+    #ws.send("Flask says hello!")
+    ws.send(json.dumps(myWorld.world())) # Update the new socket with the world
+    client = Client()
+    clients.append(client)
+    g = gevent.spawn(read_ws, ws, client) # func, arg1, arg2
+    try:
+        while True:
+            # Get off the queue that was put in read_ws()
+            msg = client.get()
+            #print("GOT %s" % msg)
+            ws.send(msg)
+    except Exception as e:# WebSocketError as e:
+        print("WS Error %s" % e)
+    finally:
+        clients.remove(client)
+        gevent.kill(g)
 
 
 # I give this to you, this is how you get the raw body/data portion of a post in flask
@@ -182,7 +189,7 @@ def get_entity(entity):
 def clear():
     '''Clear the world out!'''
     myWorld.clear()
-    return json.dumps(myWorld.world()) # should be empty {}
+    return json.dumps(myWorld.world()) # should be empty dict
 
 
 @app.route('/')

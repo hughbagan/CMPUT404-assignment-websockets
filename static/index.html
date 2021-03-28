@@ -256,24 +256,11 @@ var sockCount = 30;
 function update() {
     drawFrame();
 
-    // Send to socket once per second in batches
-    if (sockCount >= 30 && Object.keys(newCircles).length > 0) {
-        var toSend = {};
-        // Put the keys in a list first so I can iterate them
-        var keys = [];
-        Object.keys(newCircles).forEach(function(entity) {
-            keys.push(entity);
-        });
-        for (var i=0; i<Math.min(100, keys.length); i++) {
-            let entity = keys[i];
-            toSend[entity] = newCircles[entity];
-            delete newCircles[entity];
-        }
-        console.log(toSend);
-        socket.send(JSON.stringify(toSend));
-        sockCount = 0;
-    } else {
-        sockCount += 1;
+    // Send the new objects to the server
+    if (Object.keys(newCircles).length > 0) {
+        console.log(newCircles);
+        socket.send(JSON.stringify(newCircles));
+        newCircles = {};
     }
 }
 
